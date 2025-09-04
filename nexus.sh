@@ -32,19 +32,25 @@ function start_nodes() {
         node_ids=$(cat "$(dirname "$0")/nexus-node-ids")
         IFS=',' read -ra ids <<< "$node_ids"
         
-        if ! command -v tmux &> /dev/null; then
-            echo "未检测到 tmux，正在安装 tmux..."
-            brew install tmux
-        fi
-
-        session="nexus_nodes"
-        tmux new-session -d -s $session
+        APP_DIR="$(cd "$(dirname "$0")" && pwd)"
         
+        echo "正在使用 Terminal.app 启动节点..."
         for node_id in "${ids[@]}"; do
-            tmux new-window -t $session -n "$node_id" "nexus-network start --node-id $node_id"
+            # 去掉前后空格
+            node_id=$(echo "$node_id" | xargs)
+            echo "启动节点: $node_id"
+            
+            osascript -e "tell application \"Terminal\"
+                activate
+                do script \"cd '$APP_DIR' && echo '启动节点: $node_id' && nexus-network start --node-id $node_id\"
+            end tell"
+            
+            # 稍微延迟一下，避免窗口创建太快
+            sleep 0.5
         done
 
-        echo "节点启动完成!"
+        echo "所有节点已在新的 Terminal 窗口中启动完成!"
+        echo "提示: 每个节点都在独立的 Terminal 窗口中运行"
     else
         echo "未找到 $(dirname "$0")/nexus-node-ids 文件，请先设置节点ID列表."
     fi
@@ -52,24 +58,50 @@ function start_nodes() {
 
 # 查看日志/进入终端
 function view_logs() {
-    tmux list-sessions | grep "nexus_nodes" &> /dev/null
-
-    if [ $? -eq 0 ]; then
-        tmux attach-session -t nexus_nodes
+    # 检查是否有 nexus-network 进程在运行
+    if pgrep -f "nexus-network start" > /dev/null; then
+        echo "检测到正在运行的节点进程:"
+        ps aux | grep "nexus-network start" | grep -v grep | awk '{print "PID:", $2, "Node:", $NF}'
+        echo ""
+        echo "提示: 节点正在各自的 Terminal 窗口中运行"
+        echo "你可以直接在对应的 Terminal 窗口中查看日志输出"
+        echo "或者使用 'ps aux | grep nexus-network' 命令查看所有节点进程"
     else
-        echo "没有运行中的节点会话."
+        echo "没有检测到运行中的节点进程."
+        echo "请先启动节点 (选项 3)"
     fi
 }
 
 # 停止节点
 function stop_nodes() {
-    tmux list-sessions | grep "nexus_nodes" &> /dev/null
-
-    if [ $? -eq 0 ]; then
-        tmux kill-session -t nexus_nodes
+    # 查找所有 nexus-network 进程
+    pids=$(pgrep -f "nexus-network start")
+    
+    if [ -n "$pids" ]; then
+        echo "正在停止所有节点进程..."
+        echo "找到的进程 PID: $pids"
+        
+        # 逐个停止进程
+        for pid in $pids; do
+            if kill -TERM "$pid" 2>/dev/null; then
+                echo "已发送停止信号给进程 $pid"
+            fi
+        done
+        
+        # 等待进程优雅退出
+        sleep 2
+        
+        # 检查是否还有残留进程，强制杀死
+        remaining_pids=$(pgrep -f "nexus-network start")
+        if [ -n "$remaining_pids" ]; then
+            echo "强制停止残留进程: $remaining_pids"
+            pkill -KILL -f "nexus-network start"
+        fi
+        
         echo "所有节点已停止."
+        echo "提示: 对应的 Terminal 窗口可能仍然打开，你可以手动关闭它们"
     else
-        echo "没有运行中的节点会话."
+        echo "没有检测到运行中的节点进程."
     fi
 }
 
