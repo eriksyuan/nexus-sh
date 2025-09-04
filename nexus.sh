@@ -22,14 +22,14 @@ function install_update_cli() {
 # 设置 Node-ID 列表
 function set_node_ids() {
     read -p "请输入节点ID列表(使用逗号分隔): " node_ids
-    echo "$node_ids" > ~/nexus-node-ids
-    echo "节点ID已经保存到 ~/nexus-node-ids 文件中."
+    echo "$node_ids" > "$(dirname "$0")/nexus-node-ids"
+    echo "节点ID已经保存到 $(dirname "$0")/nexus-node-ids 文件中."
 }
 
 # 启动节点
 function start_nodes() {
-    if [ -f ~/nexus-node-ids ]; then
-        node_ids=$(cat ~/nexus-node-ids)
+    if [ -f "$(dirname "$0")/nexus-node-ids" ]; then
+        node_ids=$(cat "$(dirname "$0")/nexus-node-ids")
         IFS=',' read -ra ids <<< "$node_ids"
         
         if ! command -v tmux &> /dev/null; then
@@ -46,7 +46,7 @@ function start_nodes() {
 
         echo "节点启动完成!"
     else
-        echo "未找到 ~/nexus-node-ids 文件，请先设置节点ID列表."
+        echo "未找到 $(dirname "$0")/nexus-node-ids 文件，请先设置节点ID列表."
     fi
 }
 
